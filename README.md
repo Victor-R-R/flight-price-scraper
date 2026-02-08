@@ -29,11 +29,19 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-3. Configurer les credentials (optionnel - seulement pour BrightData) :
+3. Configurer les variables d'environnement (optionnel) :
+
+Créer un fichier `.env` à la racine du projet :
+
 ```bash
-cp .env.example .env
-# Éditer .env avec vos credentials BrightData
+# BrightData Configuration (optionnel - pour proxy)
+BRIGHTDATA_WS_CDP=wss://brd-customer-YOUR_ID-zone-YOUR_ZONE:YOUR_PASSWORD@brd.superproxy.io:9222
+
+# Price Alert Configuration
+PRICE_ALERT_THRESHOLD=150
 ```
+
+**Note:** Le fichier `.env` est ignoré par git pour protéger vos credentials.
 
 ## Utilisation
 
@@ -74,15 +82,11 @@ with sync_playwright() as p:
 
 ## Configuration
 
-Éditer le fichier `.env` pour configurer :
+Les variables d'environnement sont gérées via un fichier `.env` (voir Installation).
 
-```bash
-# Threshold pour les alertes de prix (en EUR)
-PRICE_ALERT_THRESHOLD=150
-
-# Credentials BrightData (optionnel)
-BRIGHTDATA_WS_CDP=wss://...
-```
+**Variables disponibles :**
+- `PRICE_ALERT_THRESHOLD` - Seuil de prix pour les alertes (défaut: 150 EUR)
+- `BRIGHTDATA_WS_CDP` - URL de connexion BrightData (optionnel)
 
 ## Sorties générées
 
@@ -116,8 +120,7 @@ L'application génère automatiquement :
 - `notifications.py` - Système d'alertes de prix
 
 ### Configuration
-- `.env` - Configuration et credentials - **NE PAS COMMITTER**
-- `.env.example` - Template de configuration
+- `.env` - Configuration et credentials (à créer localement, non versionné)
 - `requirements.txt` - Dépendances Python
 
 ### Sorties (générées automatiquement)
