@@ -1,6 +1,19 @@
 # Flight Price Scraper
 
+![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
+![Playwright](https://img.shields.io/badge/playwright-1.55-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
+
 Application de scraping pour rechercher les prix de vols les moins chers entre deux destinations sur Kayak.fr
+
+## 🚀 Features
+
+✨ **Web Scraping** - Playwright automation for Kayak.fr
+📊 **Data Export** - JSON, CSV, and HTML formats
+📈 **Visualizations** - Professional charts with matplotlib
+🔔 **Price Alerts** - Configurable threshold notifications
+🔒 **Secure** - Environment variables for credentials
 
 ## Installation
 
