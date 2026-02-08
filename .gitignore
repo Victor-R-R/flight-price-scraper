@@ -1,0 +1,33 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific - Generated files
+flight_prices.html
+flight_prices_*.json
+flight_prices_*.csv
+price_trends_*.png
+best_deals_*.png
+price_alerts_*.json
+*.log
+
+# macOS
+.DS_Store
+
+# Claude Code settings
+.claude/

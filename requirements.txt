@@ -1,0 +1,7 @@
+playwright==1.55.0
+beautifulsoup4==4.14.2
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
+matplotlib==3.10.8
+seaborn==0.13.2
+pandas==3.0.0
