@@ -21,10 +21,12 @@ ENV/
 flight_prices.html
 flight_prices_*.json
 flight_prices_*.csv
+vols_*.csv
 price_trends_*.png
 best_deals_*.png
 price_alerts_*.json
 *.log
+*.bak
 
 # macOS
 .DS_Store

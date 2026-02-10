@@ -10,10 +10,9 @@ Application de scraping pour rechercher les prix de vols les moins chers entre d
 ## 🚀 Features
 
 ✨ **Web Scraping** - Playwright automation for Kayak.fr
-📊 **Data Export** - JSON, CSV, and HTML formats
-📈 **Visualizations** - Professional charts with matplotlib
-🔔 **Price Alerts** - Configurable threshold notifications
+📊 **Data Export** - CSV format with flight details
 🔒 **Secure** - Environment variables for credentials
+🎯 **Smart Extraction** - Support for multiple Kayak layouts (A/B testing)
 
 ## Installation
 
@@ -45,38 +44,34 @@ PRICE_ALERT_THRESHOLD=150
 
 ## Utilisation
 
-### Basique (sans BrightData)
-```python
-from playwright.sync_api import sync_playwright
-
-with sync_playwright() as p:
-    run(
-        pw=p,
-        depart="Madrid",
-        arrive="Paris",
-        bright_data=False,
-        headless=False
-    )
+### Exemple de base
+```bash
+python scraping_vols_playwright.py
 ```
 
-### Avec BrightData
+### Personnalisation dans le code
 ```python
 from playwright.sync_api import sync_playwright
+from datetime import datetime
 
 with sync_playwright() as p:
     run(
         pw=p,
-        depart="Madrid",
-        arrive="Paris",
-        bright_data=True,
-        headless=True
+        depart="Paris",
+        arrive="Malaga",
+        bright_data=False,
+        headless=False,
+        start_date=datetime(2026, 7, 1),
+        end_date=datetime(2026, 7, 31)
     )
 ```
 
 ## Paramètres
 
-- `depart` (str): Ville de départ (ex: "Madrid")
-- `arrive` (str): Ville d'arrivée (ex: "Paris")
+- `depart` (str): Ville de départ (ex: "Paris")
+- `arrive` (str): Ville d'arrivée (ex: "Malaga")
+- `start_date` (datetime): Date de départ (ex: datetime(2026, 7, 1))
+- `end_date` (datetime): Date de retour (ex: datetime(2026, 7, 31))
 - `bright_data` (bool): Utiliser BrightData proxy (défaut: False)
 - `headless` (bool): Lancer le navigateur en mode headless (défaut: False)
 
@@ -87,49 +82,37 @@ Les variables d'environnement sont gérées via un fichier `.env` (voir Installa
 **Variables disponibles :**
 - `PRICE_ALERT_THRESHOLD` - Seuil de prix pour les alertes (défaut: 150 EUR)
 - `BRIGHTDATA_WS_CDP` - URL de connexion BrightData (optionnel)
+- `DEBUG_SCREENSHOTS` - Activer les screenshots de débogage (défaut: false)
 
 ## Sorties générées
 
 L'application génère automatiquement :
 
 ### 📄 Fichiers de données
-- `flight_prices.html` - Rapport HTML stylisé avec tableaux
-- `flight_prices_YYYYMMDD_HHMMSS.json` - Données structurées en JSON
-- `flight_prices_YYYYMMDD_HHMMSS.csv` - Export CSV pour Excel/analyse
+- `vols_DEPART_ARRIVE_YYYYMMDD_HHMMSS.csv` - Export CSV détaillé avec :
+  - Rang, prix, compagnie aérienne
+  - Horaires aller/retour (départ/arrivée)
+  - Nombre d'escales
+  - Durée des vols
+  - URL de réservation
 
-### 📊 Visualisations
-- `price_trends_YYYYMMDD_HHMMSS.png` - Graphiques complets :
-  - Évolution des prix moyens/min/max
-  - Prix moyens par mois (barres)
-  - Plages de prix (range)
-  - Disponibilité des vols
-
-- `best_deals_YYYYMMDD_HHMMSS.png` - Classement des meilleurs prix
-
-### 🔔 Alertes
-- `price_alerts_YYYYMMDD_HHMMSS.json` - Alertes de prix bas
-- Affichage console des deals exceptionnels
+### 📊 Affichage console
+- Tableau récapitulatif des 5 meilleurs vols
+- Logs détaillés du processus de scraping
 
 ## Structure du code
 
 ### Scripts principaux
-- `scraping_vols_playwright.py` - Script principal de scraping
-- `price.py` - Extraction et sauvegarde des prix en HTML
-- `data_export.py` - Export JSON/CSV
-- `visualizations.py` - Génération de graphiques matplotlib
-- `notifications.py` - Système d'alertes de prix
+- `scraping_vols_playwright.py` - Script principal de scraping Kayak.fr
+- `price.py` - Module d'extraction des vols (support Layout A/B)
 
 ### Configuration
 - `.env` - Configuration et credentials (à créer localement, non versionné)
 - `requirements.txt` - Dépendances Python
+- `.gitignore` - Fichiers ignorés par git
 
-### Sorties (générées automatiquement)
-- `flight_prices.html` - Rapport HTML
-- `flight_prices_*.json` - Export JSON
-- `flight_prices_*.csv` - Export CSV
-- `price_trends_*.png` - Graphiques d'analyse
-- `best_deals_*.png` - Classement des prix
-- `price_alerts_*.json` - Alertes (si seuil atteint)
+### Archives
+- `old_archives/` - Modules avancés archivés (data_export, visualizations, notifications, examples)
 
 ## Fonctionnalités
 
@@ -137,31 +120,21 @@ L'application génère automatiquement :
 - ✅ Credentials sécurisés (variables d'environnement)
 - ✅ Gestion d'erreurs robuste avec logging détaillé
 - ✅ Timeouts configurables et documentés
-- ✅ Sélecteurs CSS robustes avec fallback
-- ✅ Types de données corrects (nombres exploitables)
-- ✅ Code nettoyé et refactorisé
+- ✅ Code modulaire et maintenable
+
+### 🎯 Scraping intelligent
+- ✅ Support multi-layout (Kayak Layout A/B testing)
+- ✅ Détection automatique du layout de la page
+- ✅ Extraction robuste avec sélecteurs data-testid
+- ✅ Gestion des popups (cookies, publicités)
+- ✅ Configuration des passagers (adultes + enfants)
+- ✅ Sélection de dates personnalisables
 
 ### 📊 Export de données
-- ✅ Export JSON avec métadonnées complètes
-- ✅ Export CSV compatible Excel
+- ✅ Export CSV avec toutes les informations de vol
 - ✅ Horodatage automatique des fichiers
-- ✅ Structure de données standardisée
-
-### 📈 Visualisations
-- ✅ Graphiques de tendances (ligne + barres)
-- ✅ Visualisation des plages de prix (min-max)
-- ✅ Graphique de disponibilité des vols
-- ✅ Classement visuel des meilleurs deals
-- ✅ Design professionnel avec seaborn
-- ✅ Export haute résolution (300 DPI)
-
-### 🔔 Système d'alertes
-- ✅ Détection automatique des prix bas
-- ✅ Seuil configurable via .env
-- ✅ Alertes multi-niveaux (good deal / exceptional)
-- ✅ Export JSON des alertes
-- ✅ Affichage console avec emojis
-- ✅ Identification du meilleur mois
+- ✅ URL de réservation incluse
+- ✅ Affichage console formaté
 
 ## Notes
 
