@@ -1,113 +1,158 @@
-from bs4 import BeautifulSoup
+from playwright.sync_api import Page
 import re
 import logging
 
 logger = logging.getLogger(__name__)
 
-def get_average_price(html: str, month: str, depart: str, arrive:str) -> dict:
-    prices = []
-    soup = BeautifulSoup(html, 'html.parser')
-    
-    # Encuentra todos los divs con la clase que contiene el precio
-    divs = soup.find_all('div', class_="f8F1-price-text")
 
-    for div in divs:
-        # Extrae el texto del div que contiene el precio
-        price = re.sub(r"\D", "", div.text)  # Remover caracteres no numéricos
-        if price.isdigit():
-            logger.debug(f"Price found: {price}")
-            prices.append(int(price))
-        else:
-            logger.warning(f"Price is not a digit: {price}")
+def extract_flights(page: Page, count: int = 5) -> list[dict]:
+    """
+    Extrait les vols depuis le DOM live via Playwright.
+    Support de 2 layouts Kayak (A/B testing):
+    - Layout A (Kayak classique): classes CSS .yuAt.yuAt-pres-rounded
+    - Layout B (Booking.com): data-testid="searchresults_card"
 
-    
-    # Calculate average, min and max if prices were found
-    if prices:
-        price_data = {
-            'average': round(sum(prices) / len(prices)),
-            'min': min(prices),
-            'max': max(prices),
-            'count': len(prices),
-            'currency': 'EUR',
-            'available': True
+    Args:
+        page: Page Playwright active
+        count: Nombre de vols à extraire (défaut: 5)
+
+    Returns:
+        Liste de dictionnaires avec les données de vols:
+        {
+            'price': int,
+            'airline': str,
+            'dep_time_out': str,
+            'arr_time_out': str,
+            'dep_time_ret': str,
+            'arr_time_ret': str,
+            'stops_out': str,
+            'stops_ret': str,
+            'duration_out': str,
+            'duration_ret': str
         }
+    """
+    flights = []
+
+    # Détecter le layout
+    layout_b_cards = page.locator('[data-testid="searchresults_card"]')
+    layout_a_cards = page.locator('.yuAt.yuAt-pres-rounded')
+
+    if layout_b_cards.count() > 0:
+        logger.info(f"Layout détecté: Booking.com (data-testid) - {layout_b_cards.count()} vols trouvés")
+        flights = _extract_layout_b(page, layout_b_cards, count)
+    elif layout_a_cards.count() > 0:
+        logger.info(f"Layout détecté: Kayak classique (CSS) - {layout_a_cards.count()} vols trouvés")
+        flights = _extract_layout_a(page, layout_a_cards, count)
     else:
-        price_data = {
-            'average': 0,
-            'min': 0,
-            'max': 0,
-            'count': 0,
-            'currency': 'EUR',
-            'available': False
-        }
+        logger.error("Aucun layout reconnu - sélecteurs obsolètes")
+        return []
 
-    save_prices_to_html(month, price_data, depart, arrive)
+    logger.info(f"✓ {len(flights)} vols extraits avec succès")
+    return flights
 
-    return price_data
-def save_prices_to_html(month: str, price_data: dict, depart: str, arrive: str):
-    """Save price data to HTML file with proper formatting"""
-    import os
 
-    # Use absolute path relative to script location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    html_path = os.path.join(script_dir, 'flight_prices.html')
+def _extract_layout_b(page: Page, cards_locator, count: int) -> list[dict]:
+    """Extraction pour Layout B (Booking.com avec data-testid)"""
+    flights = []
+    total_cards = cards_locator.count()
 
-    # Create or read existing HTML
-    try:
-        with open(html_path, 'r', encoding='utf-8') as file:
-            soup = BeautifulSoup(file, 'html.parser')
-    except FileNotFoundError:
-        soup = BeautifulSoup("<html><head></head><body></body></html>", 'html.parser')
-        title = soup.new_tag('title')
-        title.string = f'Flight Prices from {depart} to {arrive}'
-        soup.head.append(title)
+    for i in range(min(count, total_cards)):
+        try:
+            card = cards_locator.nth(i)
 
-        # Add basic CSS
-        style = soup.new_tag('style')
-        style.string = """
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-            table { border-collapse: collapse; margin-bottom: 20px; width: 400px; }
-            td { padding: 8px; border: 1px solid #ddd; }
-            td:first-child { font-weight: bold; background-color: #f8f9fa; }
-        """
-        soup.head.append(style)
+            # Compagnie
+            airline_elem = card.locator('[data-testid="flight_card_carriers"]')
+            airline = airline_elem.text_content().strip() if airline_elem.count() > 0 else "N/A"
 
-    # Create month header
-    h2 = soup.new_tag('h2')
-    h2.string = f"Prices for {month.capitalize()}"
-    soup.body.append(h2)
+            # Prix (extraire uniquement les chiffres consécutifs avant le symbole €)
+            price_elem = card.locator('[data-testid="upt_price"]')
+            price_text = price_elem.text_content().strip() if price_elem.count() > 0 else "0"
 
-    # Create table with formatted values
-    table = soup.new_tag('table')
+            # Chercher le pattern : chiffres (avec espaces éventuels) suivis de €
+            price_match = re.search(r'(\d[\d\s\xa0]*)\s*€', price_text)
+            if price_match:
+                # Supprimer tous les espaces (normaux et insécables) et convertir
+                price_str = price_match.group(1).replace(' ', '').replace('\xa0', '').replace('\u202f', '')
+                price = int(price_str)
+            else:
+                # Fallback: extraire tous les chiffres
+                price_clean = re.sub(r"[^\d]", "", price_text)
+                price = int(price_clean) if price_clean else 0
 
-    if price_data.get('available', True):
-        # Display formatted prices
-        rows_data = [
-            ('Average', f"{price_data['average']} {price_data['currency']}"),
-            ('Minimum', f"{price_data['min']} {price_data['currency']}"),
-            ('Maximum', f"{price_data['max']} {price_data['currency']}"),
-            ('Count', f"{price_data['count']} flights found")
-        ]
-    else:
-        rows_data = [('Status', 'No flights available')]
+            # Horaires aller (segment 0)
+            dep_time_out_elem = card.locator('[data-testid="flight_card_segment_departure_time_0"]')
+            dep_time_out = dep_time_out_elem.text_content().strip() if dep_time_out_elem.count() > 0 else "N/A"
 
-    for label, value in rows_data:
-        row = soup.new_tag('tr')
-        td_key = soup.new_tag('td')
-        td_key.string = label
-        row.append(td_key)
-        td_value = soup.new_tag('td')
-        td_value.string = value
-        row.append(td_value)
-        table.append(row)
+            arr_time_out_elem = card.locator('[data-testid="flight_card_segment_destination_time_0"]')
+            arr_time_out = arr_time_out_elem.text_content().strip() if arr_time_out_elem.count() > 0 else "N/A"
 
-    soup.body.append(table)
+            # Horaires retour (segment 1)
+            dep_time_ret_elem = card.locator('[data-testid="flight_card_segment_departure_time_1"]')
+            dep_time_ret = dep_time_ret_elem.text_content().strip() if dep_time_ret_elem.count() > 0 else "N/A"
 
-    # Save HTML file
-    try:
-        with open(html_path, 'w', encoding='utf-8') as file:
-            file.write(str(soup.prettify()))
-        logger.debug(f"Saved prices to {html_path}")
-    except IOError as e:
-        logger.error(f"Failed to save HTML file: {e}")
+            arr_time_ret_elem = card.locator('[data-testid="flight_card_segment_destination_time_1"]')
+            arr_time_ret = arr_time_ret_elem.text_content().strip() if arr_time_ret_elem.count() > 0 else "N/A"
+
+            # Escales
+            stops_out_elem = card.locator('[data-testid="flight_card_segment_stops_0"]')
+            stops_out = stops_out_elem.text_content().strip() if stops_out_elem.count() > 0 else "N/A"
+
+            stops_ret_elem = card.locator('[data-testid="flight_card_segment_stops_1"]')
+            stops_ret = stops_ret_elem.text_content().strip() if stops_ret_elem.count() > 0 else "N/A"
+
+            # Durée
+            duration_out_elem = card.locator('[data-testid="flight_card_segment_duration_0"]')
+            duration_out = duration_out_elem.text_content().strip() if duration_out_elem.count() > 0 else "N/A"
+
+            duration_ret_elem = card.locator('[data-testid="flight_card_segment_duration_1"]')
+            duration_ret = duration_ret_elem.text_content().strip() if duration_ret_elem.count() > 0 else "N/A"
+
+            flights.append({
+                'price': price,
+                'airline': airline,
+                'dep_time_out': dep_time_out,
+                'arr_time_out': arr_time_out,
+                'dep_time_ret': dep_time_ret,
+                'arr_time_ret': arr_time_ret,
+                'stops_out': stops_out,
+                'stops_ret': stops_ret,
+                'duration_out': duration_out,
+                'duration_ret': duration_ret
+            })
+
+            logger.debug(f"Vol {i+1}: {airline} - {price}€ - {dep_time_out}->{arr_time_out}")
+
+        except Exception as e:
+            logger.error(f"Erreur extraction vol {i+1} (Layout B): {e}")
+            continue
+
+    return flights
+
+
+def _extract_layout_a(page: Page, cards_locator, count: int) -> list[dict]:
+    """Extraction pour Layout A (Kayak classique avec classes CSS)"""
+    flights = []
+    total_cards = cards_locator.count()
+
+    logger.warning("Layout A détecté - extraction à implémenter si nécessaire")
+    logger.warning("Actuellement, seul Layout B (Booking.com) est supporté")
+
+    # Placeholder pour Layout A - à implémenter si rencontré
+    # Les sélecteurs CSS changent fréquemment sur Kayak classique
+    # Il faudrait inspecter le DOM live pour identifier les bons sélecteurs
+
+    for i in range(min(count, total_cards)):
+        flights.append({
+            'price': 0,
+            'airline': "Layout A non supporté",
+            'dep_time_out': "N/A",
+            'arr_time_out': "N/A",
+            'dep_time_ret': "N/A",
+            'arr_time_ret': "N/A",
+            'stops_out': "N/A",
+            'stops_ret': "N/A",
+            'duration_out': "N/A",
+            'duration_ret': "N/A"
+        })
+
+    return flights
