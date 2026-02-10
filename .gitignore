@@ -35,6 +35,9 @@ data/*.json
 reports/*.html
 reports/*.png
 
+# Archives
+old_archives/
+
 # macOS
 .DS_Store
 
