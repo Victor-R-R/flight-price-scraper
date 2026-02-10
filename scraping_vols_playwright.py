@@ -5,6 +5,7 @@ import csv
 from dotenv import load_dotenv
 from price import extract_flights
 import logging
+import subprocess
 
 # Load environment variables
 load_dotenv()
@@ -152,6 +153,344 @@ def select_dates(page: Page, start_date: datetime, end_date: datetime):
         return False
 
 
+def generate_html_report(flights: list, depart: str, arrive: str, start_date: datetime, end_date: datetime) -> str:
+    """
+    Generate elegant HTML report from flight data
+
+    Args:
+        flights: List of flight dictionaries
+        depart: Departure city
+        arrive: Arrival city
+        start_date: Start date
+        end_date: End date
+
+    Returns:
+        Path to generated HTML file
+    """
+    if not flights:
+        return None
+
+    # Calculate statistics
+    prices = [f['price'] for f in flights if f.get('price', 0) > 0]
+    avg_price = sum(prices) / len(prices) if prices else 0
+    min_price = min(prices) if prices else 0
+    max_price = max(prices) if prices else 0
+    best_deal = min(flights, key=lambda x: x.get('price', float('inf')))
+
+    # Ensure reports directory exists
+    os.makedirs('reports', exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    html_file = f"reports/vols_{depart}_{arrive}_{timestamp}.html"
+
+    # Generate HTML
+    html_content = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Vols {depart} → {arrive}</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }}
+        .header h1 {{
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }}
+        .route {{
+            font-size: 1.5em;
+            font-weight: 300;
+            opacity: 0.95;
+        }}
+        .period {{
+            font-size: 1em;
+            margin-top: 10px;
+            opacity: 0.9;
+        }}
+        .stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px 40px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }}
+        .stat-card {{
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }}
+        .stat-label {{
+            font-size: 0.85em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }}
+        .stat-value {{
+            font-size: 2em;
+            font-weight: 700;
+            color: #667eea;
+        }}
+        .best-deal {{
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 25px 40px;
+            margin: 20px 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+        }}
+        .best-deal-label {{
+            font-size: 1.2em;
+            font-weight: 600;
+        }}
+        .best-deal-info {{
+            text-align: right;
+        }}
+        .best-deal-price {{
+            font-size: 2.5em;
+            font-weight: 800;
+        }}
+        .best-deal-company {{
+            font-size: 1.1em;
+            opacity: 0.9;
+        }}
+        .table-container {{
+            padding: 40px;
+            overflow-x: auto;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }}
+        thead {{
+            background: #667eea;
+            color: white;
+        }}
+        th {{
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }}
+        tbody tr {{
+            border-bottom: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }}
+        tbody tr:hover {{
+            background: #f8f9fa;
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        td {{
+            padding: 15px 12px;
+        }}
+        .rank {{
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.1em;
+        }}
+        .price {{
+            font-weight: 700;
+            font-size: 1.3em;
+            color: #11998e;
+        }}
+        .price::after {{
+            content: "€";
+            margin-left: 2px;
+            font-size: 0.8em;
+        }}
+        .company {{
+            font-weight: 600;
+            color: #495057;
+        }}
+        .time {{
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }}
+        .direct {{
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }}
+        .stops {{
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }}
+        .duration {{
+            color: #6c757d;
+            font-size: 0.9em;
+        }}
+        .url {{
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }}
+        .url:hover {{
+            text-decoration: underline;
+        }}
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 0.9em;
+            background: #f8f9fa;
+        }}
+        .medal {{
+            font-size: 1.5em;
+            margin-right: 5px;
+        }}
+        @media (max-width: 768px) {{
+            .header h1 {{ font-size: 1.8em; }}
+            .stats {{ grid-template-columns: 1fr; }}
+            .best-deal {{
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }}
+            .best-deal-info {{ text-align: center; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✈️ Rapport de Prix des Vols</h1>
+            <div class="route">{depart} → {arrive}</div>
+            <div class="period">{start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Vols analysés</div>
+                <div class="stat-value">{len(flights)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Prix moyen</div>
+                <div class="stat-value">{int(avg_price)}€</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Prix minimum</div>
+                <div class="stat-value">{min_price}€</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Prix maximum</div>
+                <div class="stat-value">{max_price}€</div>
+            </div>
+        </div>
+
+        <div class="best-deal">
+            <div>
+                <span class="medal">🏆</span>
+                <span class="best-deal-label">Meilleure offre</span>
+            </div>
+            <div class="best-deal-info">
+                <div class="best-deal-price">{best_deal.get('price', 0)}€</div>
+                <div class="best-deal-company">{best_deal.get('airline', 'N/A')}</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Prix</th>
+                        <th>Compagnie</th>
+                        <th>Départ Aller</th>
+                        <th>Arrivée Aller</th>
+                        <th>Départ Retour</th>
+                        <th>Arrivée Retour</th>
+                        <th>Escales Aller</th>
+                        <th>Escales Retour</th>
+                        <th>Durée Aller</th>
+                        <th>Durée Retour</th>
+                        <th>Réservation</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
+
+    # Add flight rows
+    for i, flight in enumerate(flights, start=1):
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else ""
+
+        stops_out = flight.get('stops_out', 'N/A')
+        stops_ret = flight.get('stops_ret', 'N/A')
+        escales_aller_class = "direct" if "direct" in stops_out.lower() else "stops"
+        escales_retour_class = "direct" if "direct" in stops_ret.lower() else "stops"
+
+        html_content += f"""                    <tr>
+                        <td class="rank">{medal} {i}</td>
+                        <td class="price">{flight.get('price', 0)}</td>
+                        <td class="company">{flight.get('airline', 'N/A')}</td>
+                        <td class="time">{flight.get('dep_time_out', 'N/A')}</td>
+                        <td class="time">{flight.get('arr_time_out', 'N/A')}</td>
+                        <td class="time">{flight.get('dep_time_ret', 'N/A')}</td>
+                        <td class="time">{flight.get('arr_time_ret', 'N/A')}</td>
+                        <td><span class="{escales_aller_class}">{stops_out}</span></td>
+                        <td><span class="{escales_retour_class}">{stops_ret}</span></td>
+                        <td class="duration">{flight.get('duration_out', 'N/A')}</td>
+                        <td class="duration">{flight.get('duration_ret', 'N/A')}</td>
+                        <td><a href="{flight.get('url', '#')}" target="_blank" class="url">Réserver →</a></td>
+                    </tr>
+"""
+
+    now = datetime.now().strftime("%d/%m/%Y à %H:%M")
+    html_content += f"""                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            Rapport généré le {now} | Données depuis Kayak.fr
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+    # Save HTML
+    with open(html_file, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    logger.info(f"✓ Rapport HTML généré : {html_file}")
+    return html_file
+
+
 def run(pw, depart: str, arrive: str, bright_data: bool = False, headless: bool = False,
         start_date: datetime = None, end_date: datetime = None):
     """Main scraping function"""
@@ -271,8 +610,11 @@ def run(pw, depart: str, arrive: str, bright_data: bool = False, headless: bool 
         logger.info(f"\n{'='*50}")
         logger.info("Exporting flight data to CSV...")
 
+        # Ensure data directory exists
+        os.makedirs('data', exist_ok=True)
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_file = f"vols_{depart}_{arrive}_{timestamp}.csv"
+        csv_file = f"data/vols_{depart}_{arrive}_{timestamp}.csv"
 
         # CSV columns
         fieldnames = [
@@ -329,6 +671,19 @@ def run(pw, depart: str, arrive: str, bright_data: bool = False, headless: bool 
 
         print(f"{'='*100}\n")
         logger.info(f"{'='*50}\n")
+
+        # Generate HTML report automatically
+        logger.info("Generating HTML report...")
+        html_file = generate_html_report(all_months_data, depart, arrive, start_date, end_date)
+
+        if html_file:
+            logger.info(f"✓ HTML report: {html_file}")
+            # Open HTML in browser automatically
+            try:
+                subprocess.run(['open', html_file], check=False)
+                logger.info("🌐 Opening report in browser...")
+            except Exception as e:
+                logger.warning(f"Could not open browser: {e}")
 
     logger.info("✓ Scraping complete")
     return all_months_data

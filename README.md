@@ -86,33 +86,48 @@ Les variables d'environnement sont gérées via un fichier `.env` (voir Installa
 
 ## Sorties générées
 
-L'application génère automatiquement :
+L'application génère automatiquement deux types de fichiers :
 
-### 📄 Fichiers de données
-- `vols_DEPART_ARRIVE_YYYYMMDD_HHMMSS.csv` - Export CSV détaillé avec :
-  - Rang, prix, compagnie aérienne
-  - Horaires aller/retour (départ/arrivée)
-  - Nombre d'escales
-  - Durée des vols
-  - URL de réservation
+### 📄 CSV (données brutes) → `data/`
+- `data/vols_DEPART_ARRIVE_YYYYMMDD_HHMMSS.csv`
+- Format Excel-compatible avec toutes les données
+- Colonnes : rang, prix, compagnie, horaires, escales, durées, URL
+
+### 📑 HTML (rapports visuels) → `reports/`
+- `reports/vols_DEPART_ARRIVE_YYYYMMDD_HHMMSS.html`
+- Rapport élégant avec design moderne
+- S'ouvre automatiquement dans le navigateur
+- Statistiques, meilleure offre, tableau interactif
 
 ### 📊 Affichage console
 - Tableau récapitulatif des 5 meilleurs vols
 - Logs détaillés du processus de scraping
 
-## Structure du code
+## Structure du projet
 
-### Scripts principaux
-- `scraping_vols_playwright.py` - Script principal de scraping Kayak.fr
-- `price.py` - Module d'extraction des vols (support Layout A/B)
-
-### Configuration
-- `.env` - Configuration et credentials (à créer localement, non versionné)
-- `requirements.txt` - Dépendances Python
-- `.gitignore` - Fichiers ignorés par git
-
-### Archives
-- `old_archives/` - Modules avancés archivés (data_export, visualizations, notifications, examples)
+```
+scraping_advanced/
+├── scraping_vols_playwright.py  # Script principal
+├── price.py                     # Extraction des vols
+├── generate_report.py           # Générateur HTML standalone (optionnel)
+├── requirements.txt             # Dépendances
+├── .env                         # Configuration (à créer)
+├── README.md                    # Documentation
+│
+├── data/                        # 📊 Données CSV (ignoré par git)
+│   ├── README.md
+│   └── vols_*.csv
+│
+├── reports/                     # 📑 Rapports HTML (ignoré par git)
+│   ├── README.md
+│   └── vols_*.html
+│
+└── old_archives/                # Archives (ignoré par git)
+    ├── data_export.py
+    ├── visualizations.py
+    ├── notifications.py
+    └── example_usage.py
+```
 
 ## Fonctionnalités
 
